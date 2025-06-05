@@ -4,6 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Advanced Resume Generator</title>
+ <script src="https://unpkg.com/@google/generative-ai"></script>
+<script>
+  
+  const GEMINI_API_KEY = 'AIzaSyCI54zC1Hd5nGNsSE4LZPZ7vxhV6UiUBFQ'; // Replace with your actual API key
+  let geminiClient = null;
+
+  async function initGemini() {
+    const { GoogleGenerativeAI } = await import('https://unpkg.com/@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    geminiClient = genAI.getGenerativeModel({ model: "gemini-pro" });
+  }
+  initGemini(); 
+</script>
+    
     <style>
         /* CSS Reset and Base Styles */
         * {
@@ -524,7 +538,7 @@
             </div>
         </div>
     </div>
-
+   
     <script>
         // Experience and Education counters
         let experienceCount = 1;
@@ -914,12 +928,68 @@
         });
 
         // Analyze Job Description
-        analyzeJobBtn.addEventListener('click', function() {
-            const jobDescription = jobDescriptionTextarea.value.trim();
-            if (!jobDescription) {
-                alert('Please paste a job description first');
-                return;
-            }
+        analyzeJobBtn.addEventListener('click', async function() {
+  const jobDescription = jobDescriptionTextarea.value.trim();
+  if (!jobDescription) {
+    alert('Please paste a job description first');
+    return;
+  }
+
+  if (!geminiClient) {
+    alert('AI service is not initialized. Please try again later.');
+    return;
+  }
+
+  // Show loading state
+  analyzeJobBtn.disabled = true;
+  analyzeJobBtn.textContent = 'Analyzing...';
+
+  try {
+    const prompt = `
+    Analyze this job description and resume data. Provide:
+    1. Match percentage (0-100%)
+    2. Top 5 missing keywords
+    3. 3 improvement suggestions
+    
+    Job Description:
+    ${jobDescription}
+    
+    Resume Data:
+    ${getResumeTextForAnalysis()} // You'll need to add this helper function
+    `;
+
+    const result = await geminiClient.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    // Process response (same as previous example)
+    displayAnalysisResults(text); 
+
+  } catch (error) {
+    console.error('Analysis failed:', error);
+    alert('Analysis failed. Please try again.');
+  } finally {
+    analyzeJobBtn.disabled = false;
+    analyzeJobBtn.textContent = 'Analyze Job Match';
+  }
+});
+
+// Add these helper functions:
+function getResumeTextForAnalysis() {
+  return `
+    Summary: ${document.getElementById('summary').value}
+    Skills: ${document.getElementById('skills').value}
+    Experience: ${getAllExperienceText()}
+  `;
+}
+
+function getAllExperienceText() {
+  let text = '';
+  for (let i = 1; i <= experienceCount; i++) {
+    text += document.getElementById(`job-description-${i}`)?.value + '\n';
+  }
+  return text;
+}
 
             // Mock analysis - in a real app, you'd use NLP or regex to extract keywords
             const skillsText = document.getElementById('skills').value.toLowerCase();
@@ -998,23 +1068,53 @@
     });
 
     // AI Suggestions for Experience (generic function)
-    function getAISuggestion(fieldId) {
-        const currentText = document.getElementById(fieldId).value;
-        const jobTitle = document.getElementById(fieldId.replace('job-description', 'job-title')).value || 'the position';
-        
-        // Mock AI suggestions
-        const suggestions = [
-            `Successfully managed multiple projects while maintaining high-quality standards in ${jobTitle} role.`,
-            `Collaborated with cross-functional teams to achieve measurable results in ${jobTitle} position.`,
-            `Implemented process improvements that increased efficiency by 25% in ${jobTitle} role.`
-        ];
-        
-        if (currentText) {
-            document.getElementById(fieldId).value = currentText + '\n\n' + suggestions.join('\n');
-        } else {
-            document.getElementById(fieldId).value = suggestions.join('\n');
-        }
+    async function getAISuggestion(fieldId) {
+  if (!geminiClient) {
+    alert('AI service is not initialized. Please try again later.');
+    return;
+  }
+
+  const field = document.getElementById(fieldId);
+  const currentText = field.value;
+  
+  // Show loading state
+  field.disabled = true;
+  const originalText = field.value;
+  field.value = "Generating AI suggestions...";
+
+  try {
+    // Custom prompts for different fields
+    let prompt;
+    if (fieldId === 'summary') {
+      const jobTitle = document.getElementById('job-title').value || 'a professional';
+      prompt = `Generate 3 professional summary statements for a ${jobTitle}. Keep each under 25 words. Focus on achievements and skills.`;
+    } 
+    else if (fieldId.startsWith('job-description')) {
+      const position = document.getElementById(fieldId.replace('job-description', 'job-title')).value || 'this role';
+      prompt = `Generate 3 bullet points for a resume describing accomplishments in ${position}. Start with action verbs and include metrics if possible.`;
     }
+
+    const result = await geminiClient.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    // Format the response
+    const suggestions = text.split('\n')
+      .filter(line => line.trim().length > 0)
+      .slice(0, 3); // Take first 3 suggestions
+    
+    field.value = currentText ? 
+      `${currentText}\n\n${suggestions.join('\n')}` : 
+      suggestions.join('\n');
+      
+  } catch (error) {
+    console.error('AI error:', error);
+    field.value = originalText;
+    alert('Failed to get suggestions. Please try again.');
+  } finally {
+    field.disabled = false;
+  }
+}
 
     // Add event listeners to all existing AI suggestion buttons
     document.querySelectorAll('.ai-suggestion-btn').forEach(button => {
