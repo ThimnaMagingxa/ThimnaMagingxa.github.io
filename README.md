@@ -1,7 +1,9 @@
 # ThimnaMagingxa.github.io
+=========================================================================
 
 Project Overview
 This is an intelligent resume generation system that creates customized, ATS-friendly resumes based on user inputs. The application features multiple templates, industry-specific keyword optimization, and job description matching analysis.
+=========================================================================
 
 Features
 Custom Resume Generation: Create resumes tailored to your career information
